@@ -30,12 +30,12 @@
 </head>
 <body>
     <h1>Welcome to the Museum Guessing Game!</h1>
-    <p>Guess the painting of the day!</p>
+    <p>Guess the artwork of the day!</p>
 
     <div class="quiz-container">
-        <h2>Can you guess this painting?</h2>
-        <div id="painting-image">
-            <img class="image-frame" id="image-to-guess" src="" alt="Guess the painting" />
+        <h2>Can you guess this artwork?</h2>
+        <div id="artwork-image">
+            <img class="image-frame" id="image-to-guess" src="" alt="Guess the artwork" />
         </div>
         <p><strong>Hint: </strong> Try to figure out the title or artist!</p>
         
@@ -46,6 +46,9 @@
         </form>
         
         <p id="feedback"></p>
+        <p>Attempts left: <span id="attempts-left">5</span></p>
+        
+        <button id="next-artwork" style="display: none;">Next Artwork</button>
     </div>
 
     <script>
@@ -54,53 +57,93 @@
             const feedbackElement = document.getElementById('feedback');
             const guessForm = document.getElementById('guess-form');
             const guessInput = document.getElementById('guess-input');
+            const attemptsLeftElement = document.getElementById('attempts-left');
+            const nextArtworkButton = document.getElementById('next-artwork');
 
-            // Função para pegar um quadro aleatório da Museums API
+            let attemptsLeft = 5;
+            let correctAnswer = '';
+
+            // Função para pegar um artwork específico da Museums API
             async function fetchArtwork() {
                 try {
-                    // API para pegar arte aleatória (você pode adaptar o endpoint conforme necessário)
-                    const response = await fetch('https://api.artic.edu/api/v1/artworks/search?q=&limit=1');
-                    const data = await response.json();
-                    const artwork = data.data[0]; // Pega o primeiro item retornado
-                    
-                    // Exibe a imagem na página
+                    let artwork = null;
+
+                    // Loop para garantir que pegamos uma obra que não tenha o título "Untitled"
+                    while (!artwork || artwork.title.toLowerCase() === 'untitled') {
+                        // Gerar um número aleatório para o ID do artwork
+                        const artworkId = Math.floor(Math.random() * 1000) + 129880; // Ajuste o range conforme necessário
+
+                        // API para pegar a obra específica pela ID
+                        const response = await fetch(`https://api.artic.edu/api/v1/artworks/${artworkId}`);
+                        const data = await response.json();
+                        artwork = data.data; // Objeto do artwork
+                    }
+
+                    // Verifica se há imagem associada ao artwork
+                    if (!artwork || !artwork.image_id) {
+                        fetchArtwork(); // Chama novamente se não tiver imagem
+                        return;
+                    }
+
+                    // Usando a ID da imagem para gerar o link correto da imagem
                     const imageUrl = artwork.image_id 
                         ? `https://www.artic.edu/iiif/2/${artwork.image_id}/full/843,/0/default.jpg`
                         : 'https://via.placeholder.com/600'; // Fallback para uma imagem padrão se não houver imagem disponível
+                    
+                    // Exibe a imagem e título
                     imageElement.src = imageUrl;
+                    correctAnswer = artwork.title.toLowerCase();
 
-                    // Escondendo as informações sobre o quadro (nome e descrição)
-                    const correctAnswer = artwork.title;
+                    // Resetar tentativas
+                    attemptsLeft = 5;
+                    attemptsLeftElement.textContent = attemptsLeft;
 
-                    // Salva a resposta correta de maneira escondida na página
-                    document.body.setAttribute('data-correct-answer', correctAnswer.toLowerCase());
+                    // Limpa a resposta anterior
+                    feedbackElement.textContent = '';
+                    guessInput.value = '';
+                    nextArtworkButton.style.display = 'none'; // Esconde o botão de próxima obra
 
                 } catch (error) {
-                    console.error('Erro ao obter quadro:', error);
+                    console.error('Erro ao obter artwork:', error);
+                    feedbackElement.textContent = 'Failed to load artwork. Please try again later.';
+                    feedbackElement.style.color = 'red';
                 }
             }
 
-            // Chama a função para obter um quadro ao carregar a página
-            await fetchArtwork();
-
-            // Lógica para o jogo de adivinhação
+            // Função para processar a tentativa do usuário
             guessForm.addEventListener('submit', (event) => {
                 event.preventDefault();
                 
                 const userGuess = guessInput.value.trim().toLowerCase();
-                const correctAnswer = document.body.getAttribute('data-correct-answer');
-                
+
+                // Verifica se a resposta está correta
                 if (userGuess === correctAnswer) {
-                    feedbackElement.textContent = 'Correct! Great job!';
+                    feedbackElement.textContent = `Correct! The artwork is: ${correctAnswer}`;
                     feedbackElement.style.color = 'green';
+
+                    // Exibir o botão de próxima obra
+                    nextArtworkButton.style.display = 'block';
+                    attemptsLeft = 0; // Impede mais tentativas
                 } else {
+                    attemptsLeft--;
                     feedbackElement.textContent = 'Oops! Try again!';
                     feedbackElement.style.color = 'red';
+                    attemptsLeftElement.textContent = attemptsLeft;
+
+                    if (attemptsLeft <= 0) {
+                        feedbackElement.textContent = `Out of attempts! The correct answer was: ${correctAnswer}`;
+                        nextArtworkButton.style.display = 'block'; // Exibir o botão para próxima obra
+                    }
                 }
-                
-                // Limpar o campo de entrada para nova tentativa
-                guessInput.value = '';
             });
+
+            // Função para ir para a próxima artwork
+            nextArtworkButton.addEventListener('click', () => {
+                fetchArtwork(); // Chama outro artwork
+            });
+
+            // Começar o jogo com o primeiro artwork
+            fetchArtwork();
         });
     </script>
 </body>
